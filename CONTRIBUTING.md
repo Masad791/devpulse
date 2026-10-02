@@ -29,6 +29,8 @@ The third value is the list of topics every post from that feed belongs to (opti
 
 **Improve topic matching** — keywords live in `KEYWORDS` in [`src/lib/pipeline.ts`](src/lib/pipeline.ts). Add a test case in `pipeline.test.ts` for anything subtle.
 
+**Add a repo category or issue label** — `REPO_CATEGORIES` / `ISSUE_LABELS` in [`src/lib/sources/github.ts`](src/lib/sources/github.ts). A category is one or more GitHub search queries (e.g. `"topic:rag"`).
+
 **Add a theme** — add a `[data-theme="your-theme"]` block with the six color variables to [`src/app/globals.css`](src/app/globals.css), and an entry in `THEMES` in [`src/lib/prefs.ts`](src/lib/prefs.ts) with matching swatch colors. Check text contrast (muted text on the background should be at least 4.5:1).
 
 **Add a non-RSS source** — write an adapter in `src/lib/sources/` that returns `RawArticle[]` (see `hackernews.ts` for a ~30-line example) and add it to `SOURCES`.

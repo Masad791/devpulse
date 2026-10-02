@@ -13,6 +13,9 @@ Open-source tech news for builders: **AI & ML, system design, DevOps, cloud, web
 - **12 topics** from 54 sources: Hacker News, Dev.to, Lobsters, Hugging Face Papers and 50 engineering blogs (Netflix, Meta, Stripe, Cloudflare, ByteByteGo, AWS, Kubernetes, Rust, Go, Krebs, Martin Fowler…).
 - **Buzz**: posts from 20 well-known engineers on Bluesky + trending tech posts on Mastodon, updated live (checks every minute, "N new posts" like Twitter).
 - **Make it yours**: 9 themes (Dracula, Nord, Midnight, Solarized, Terminal…), any accent color, list or card layout, compact mode, sans or mono font, and a personal **For you** feed — no account, saved in your browser.
+- **Repos**: trending GitHub repos by category — Claude & agent skills, AI agents, MCP servers, LLM apps, self-hosted & free alternatives, dev tools, DevOps, web, learning lists — new this week/month or popular & active, filterable by language.
+- **Contribute**: find open issues labelled good first issue, help wanted, hacktoberfest, documentation… by language, keyword or repo. Every trending repo links to its contributor-friendly issues.
+- **Discussions**: the most-commented threads right now from Hacker News, Ask HN, Lobsters and Dev.to #discuss.
 - Ranked feed with pagination, a sidebar of trending AI models and rising GitHub repos, and live source health.
 - **Free JSON API** with open CORS.
 
@@ -56,7 +59,7 @@ npm run dev        # http://localhost:3000
 npm test
 ```
 
-Optional: copy `.env.example` to `.env.local` and set `GITHUB_TOKEN` for a higher GitHub rate limit.
+Copy `.env.example` to `.env.local` and set `GITHUB_TOKEN` (read-only, public repos). It works without one, but GitHub search allows only 10 requests/min unauthenticated — set it in Vercel/Netlify env vars for production.
 
 ## Contributing
 
