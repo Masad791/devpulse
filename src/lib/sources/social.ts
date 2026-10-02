@@ -1,6 +1,6 @@
 // "What engineers are saying": posts from engineers on Bluesky + trending posts on tech Mastodon servers.
 // X/Twitter has no free read API, so these two open networks are where we can get this for free.
-import { matchTopics } from "../pipeline";
+import { httpUrl, matchTopics } from "../pipeline";
 import type { Post } from "../types";
 import { getJson } from "./http";
 
@@ -60,11 +60,11 @@ async function blueskyAuthor(handle: string): Promise<Post[]> {
       author: {
         name: post.author.displayName || post.author.handle,
         handle: `@${post.author.handle}`,
-        avatar: post.author.avatar,
+        avatar: httpUrl(post.author.avatar),
         url: `https://bsky.app/profile/${post.author.handle}`,
       },
       text: post.record.text,
-      link: post.embed?.external ? { url: post.embed.external.uri, title: post.embed.external.title } : undefined,
+      link: link(post.embed?.external?.uri, post.embed?.external?.title),
       createdAt: post.record.createdAt,
       likes: post.likeCount ?? 0,
       reposts: post.repostCount ?? 0,
@@ -86,6 +86,12 @@ type MastodonStatus = {
   replies_count: number;
 };
 
+/** A link preview, only if its URL is http(s) — these come straight from other people's posts. */
+function link(url: string | undefined, title: string | undefined) {
+  const safe = httpUrl(url);
+  return safe ? { url: safe, title: title ?? "" } : undefined;
+}
+
 /** Mastodon gives HTML. We render plain text (React escapes it), so strip tags and decode the common entities. */
 export function htmlToText(html: string): string {
   return html
@@ -101,7 +107,7 @@ async function mastodonTrending(server: string): Promise<Post[]> {
     revalidate: SOCIAL_REVALIDATE,
   });
   return statuses
-    .filter((s) => !s.sensitive && !s.spoiler_text)
+    .filter((s) => !s.sensitive && !s.spoiler_text && httpUrl(s.url))
     .map((s): Post => ({
       id: `${server}:${s.id}`,
       network: "Mastodon",
@@ -109,11 +115,11 @@ async function mastodonTrending(server: string): Promise<Post[]> {
       author: {
         name: s.account.display_name || s.account.acct,
         handle: `@${s.account.acct.includes("@") ? s.account.acct : `${s.account.acct}@${server}`}`,
-        avatar: s.account.avatar,
-        url: s.account.url,
+        avatar: httpUrl(s.account.avatar),
+        url: httpUrl(s.account.url) ?? `https://${server}`,
       },
       text: htmlToText(s.content),
-      link: s.card ? { url: s.card.url, title: s.card.title } : undefined,
+      link: link(s.card?.url, s.card?.title),
       createdAt: s.created_at,
       likes: s.favourites_count,
       reposts: s.reblogs_count,

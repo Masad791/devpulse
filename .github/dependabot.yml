@@ -4,6 +4,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Major versions need a real migration (e.g. ESLint 10 isn't supported by eslint-config-next yet),
+    # so Dependabot only proposes minor/patch updates; majors are upgraded by hand.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       all:
         patterns: ["*"]

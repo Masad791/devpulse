@@ -24,7 +24,29 @@ const RULES = Object.fromEntries(
   Object.entries(KEYWORDS).map(([c, words]) => [c, new RegExp(`(?<![\\w])(${words.join("|")})(?![\\w])`, "i")]),
 ) as Record<Category, RegExp>;
 
-export const matchTopics = (text: string) => (Object.keys(RULES) as Category[]).filter((c) => RULES[c].test(text));
+/**
+ * Only http(s) links get in. Links come from 50+ outside sources: React blocks `javascript:` hrefs but not
+ * `data:`, and consumers of our public API get no protection at all — so we validate once, at ingestion.
+ */
+export function httpUrl(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const u = new URL(raw.trim());
+    return u.protocol === "https:" || u.protocol === "http:" ? u.href : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Drops articles without a valid link; strips invalid secondary links and images. */
+export function sanitize(items: RawArticle[]): RawArticle[] {
+  return items.flatMap((item) => {
+    const url = httpUrl(item.url);
+    return url ? [{ ...item, url, discussionUrl: httpUrl(item.discussionUrl), image: httpUrl(item.image) }] : [];
+  });
+}
+
+export const matchTopics =(text: string) => (Object.keys(RULES) as Category[]).filter((c) => RULES[c].test(text));
 
 /** Source hints + keyword matches. Articles matching nothing are off-topic and get dropped. */
 export function categorize(items: RawArticle[]): Article[] {

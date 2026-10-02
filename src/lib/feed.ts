@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { categorize, dedupe, dropStale, rank } from "./pipeline";
+import { categorize, dedupe, dropStale, rank, sanitize } from "./pipeline";
 import { allSettledPool } from "./pool";
 import { SOURCES } from "./sources";
 import { discussionFetchers, type Discussion } from "./sources/discussions";
@@ -22,7 +22,7 @@ async function buildFeed(): Promise<Feed> {
 
   const raw = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   const now = Date.now();
-  return { generatedAt: new Date(now).toISOString(), articles: rank(dedupe(categorize(dropStale(raw, now))), now), sources };
+  return { generatedAt: new Date(now).toISOString(), articles: rank(dedupe(categorize(dropStale(sanitize(raw), now))), now), sources };
 }
 
 // The whole processed feed is cached as ONE entry and shared by every page and the API.

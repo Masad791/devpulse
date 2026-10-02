@@ -161,6 +161,10 @@ export function issueQuery(f: IssueFilters): string {
 
 export const ISSUES_PER_PAGE = 30;
 
+// ponytail: no per-visitor rate limit. Random keywords bypass the cache, so one abusive client can burn the
+// shared GITHUB_TOKEN search quota (30/min) and degrade /contribute for everyone. If that happens, add a
+// platform rule (Vercel Firewall / Netlify rate limiting) on /contribute and /repos before writing app code.
+
 export async function searchIssues(f: IssueFilters): Promise<{ total: number; issues: Issue[] }> {
   const res = await getJson<{ total_count: number; items: ApiIssue[] }>(
     `https://api.github.com/search/issues?q=${encodeURIComponent(issueQuery(f))}&sort=${f.sort}&order=desc&per_page=${ISSUES_PER_PAGE}&page=${f.page}`,

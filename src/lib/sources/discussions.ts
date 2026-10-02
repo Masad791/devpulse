@@ -1,5 +1,5 @@
 // The hottest developer discussions: most-commented threads on HN, Ask HN, Lobsters and Dev.to #discuss.
-import { matchTopics } from "../pipeline";
+import { httpUrl, matchTopics } from "../pipeline";
 import { getJson } from "./http";
 
 export type Discussion = {
@@ -30,7 +30,7 @@ async function hn(): Promise<Discussion[]> {
     id: `hn:${h.objectID}`,
     title: h.title,
     threadUrl: `https://news.ycombinator.com/item?id=${h.objectID}`,
-    linkUrl: h.url ?? undefined,
+    linkUrl: httpUrl(h.url ?? undefined),
     source: kind === "ask" ? "Ask HN" : "Hacker News",
     kind,
     comments: h.num_comments,
@@ -57,7 +57,7 @@ async function lobsters(): Promise<Discussion[]> {
       id: `lobsters:${s.short_id}`,
       title: s.title,
       threadUrl: s.comments_url,
-      linkUrl: s.url || undefined,
+      linkUrl: httpUrl(s.url),
       source: "Lobsters",
       kind: s.tags.includes("ask") ? "ask" : "debate",
       comments: s.comment_count,

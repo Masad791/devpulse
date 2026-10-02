@@ -14,7 +14,7 @@ export function ForYou() {
   const prefs = usePrefs();
   const page = Math.max(1, Number(useSearchParams().get("page")) || 1);
   const topics = prefs?.topics ?? [];
-  const url = topics.length ? `/api/feed?topic=${topics.join(",")}&page=${page}&limit=30` : null;
+  const url = topics.length ? `/api/feed?${new URLSearchParams({ topic: topics.join(","), page: String(page), limit: "30" })}` : null;
 
   // Keyed by URL so a stale response for the previous page can never be shown for the new one.
   const [result, setResult] = useState<{ url: string; data: FeedPage } | null>(null);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categorize, dedupe, dropStale, normalizeUrl, paginate, rank } from "./pipeline";
+import { categorize, dedupe, dropStale, httpUrl, normalizeUrl, paginate, rank, sanitize } from "./pipeline";
 import type { Article, RawArticle } from "./types";
 
 const NOW = Date.parse("2026-10-02T12:00:00Z");
@@ -36,6 +36,25 @@ describe("categorize", () => {
     expect(categorize([raw({ title: "How to maintain a garden" })])).toEqual([]);
     expect(categorize([raw({ title: "What's new in C++26" })])).toEqual([]); // "C++26" is not "C++"
     expect(categorize([raw({ title: "Modern C++ tips" })])[0].categories).toContain("languages");
+  });
+});
+
+describe("sanitize", () => {
+  it("only lets http(s) links in", () => {
+    expect(httpUrl("https://example.com/a")).toBe("https://example.com/a");
+    expect(httpUrl(" JaVaScRiPt:alert(1)")).toBeUndefined();
+    expect(httpUrl("data:text/html,<script>alert(1)</script>")).toBeUndefined();
+    expect(httpUrl("/relative/path")).toBeUndefined();
+    expect(httpUrl(undefined)).toBeUndefined();
+  });
+
+  it("drops articles with a bad link and strips bad secondary links", () => {
+    const out = sanitize([
+      raw({ id: "evil", url: "javascript:alert(1)" }),
+      raw({ id: "ok", url: "https://x.com/a", discussionUrl: "data:text/html,hi", image: "javascript:x" }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ id: "ok", discussionUrl: undefined, image: undefined });
   });
 });
 
