@@ -1,10 +1,136 @@
 @import "tailwindcss";
 
+/*
+ * Theming: every color is a CSS variable. A theme is just a block that redefines them, selected by
+ * <html data-theme="…">. The user's choices live in localStorage and are applied to <html> by an inline
+ * script before first paint (see layout.tsx), so static pages stay static and there's no flash.
+ */
+
 @theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-:root {
-  color-scheme: light dark;
+/* Layout + density switches as Tailwind variants: `cards:grid`, `compact:py-2`. Pure CSS, zero JS re-render. */
+@custom-variant cards (&:where([data-layout="cards"] *));
+@custom-variant compact (&:where([data-density="compact"] *));
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #f6f6f8;
+  --fg: #17171c;
+  --muted: #676774;
+  --line: #e5e5ea;
+  --accent: #059669;
+}
+
+/* "dark" is defined twice: once for the OS setting (system), once for the explicit choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]),
+  [data-theme="system"] {
+    color-scheme: dark;
+    --bg: #0b0b0f;
+    --surface: #15151b;
+    --fg: #ececf1;
+    --muted: #8d8d9b;
+    --line: #26262e;
+    --accent: #34d399;
+  }
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0b0f;
+  --surface: #15151b;
+  --fg: #ececf1;
+  --muted: #8d8d9b;
+  --line: #26262e;
+  --accent: #34d399;
+}
+
+[data-theme="midnight"] {
+  color-scheme: dark;
+  --bg: #0a0f1f;
+  --surface: #111a33;
+  --fg: #e5e9f6;
+  --muted: #8c96b8;
+  --line: #1e2a4b;
+  --accent: #7c9cff;
+}
+
+[data-theme="nord"] {
+  color-scheme: dark;
+  --bg: #2e3440;
+  --surface: #3b4252;
+  --fg: #eceff4;
+  --muted: #a7b1c6;
+  --line: #4c566a;
+  --accent: #88c0d0;
+}
+
+[data-theme="dracula"] {
+  color-scheme: dark;
+  --bg: #282a36;
+  --surface: #313442;
+  --fg: #f8f8f2;
+  --muted: #a3a8c8;
+  --line: #44475a;
+  --accent: #bd93f9;
+}
+
+[data-theme="solarized"] {
+  color-scheme: light;
+  --bg: #fdf6e3;
+  --surface: #eee8d5;
+  --fg: #073642;
+  --muted: #5f747c;
+  --line: #e2d9bf;
+  --accent: #268bd2;
+}
+
+[data-theme="paper"] {
+  color-scheme: light;
+  --bg: #f7f3ea;
+  --surface: #eee8da;
+  --fg: #2b2622;
+  --muted: #776c60;
+  --line: #ded4c2;
+  --accent: #c2410c;
+}
+
+[data-theme="terminal"] {
+  color-scheme: dark;
+  --bg: #050a06;
+  --surface: #0c160e;
+  --fg: #b6f5c0;
+  --muted: #5f9b69;
+  --line: #17301c;
+  --accent: #39ff6a;
+  --font-body: var(--font-geist-mono);
+}
+
+/* Explicit font choice wins over a theme's default (declared after the themes on purpose). */
+[data-font="sans"] {
+  --font-body: var(--font-geist-sans);
+}
+[data-font="mono"] {
+  --font-body: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body, var(--font-geist-sans)), system-ui, sans-serif;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--accent) 30%, transparent);
 }

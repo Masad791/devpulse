@@ -1,26 +1,43 @@
-// Pure steps of the feed pipeline: categorize -> dedupe -> rank.
+// Pure steps of the feed pipeline: categorize -> dedupe -> rank -> paginate.
 // No I/O here, so every step is unit-testable (see pipeline.test.ts).
 import type { Article, Category, RawArticle } from "./types";
 
-const RULES: Record<Category, RegExp> = {
-  ai: /\b(ai|llms?|gpt\S*|claude|gemini|llama|mistral|deepseek|qwen|openai|anthropic|machine ?learning|ml|deep learning|neural|transformers?|diffusion|rag|agents?|agentic|embeddings?|fine-?tun\w*|inference|hugging ?face|vibecoding|mcp)\b/i,
-  "system-design":
-    /\b(system design|architecture|distributed|scal(e|ing|ability)|microservices?|databases?|postgres(ql)?|sqlite|sql|redis|kafka|queues?|cach(e|ing)|consensus|raft|shard\w*|replication|load balanc\w*|latency|throughput|event[- ]driven|cdn)\b/i,
-  devops:
-    /\b(devops|kubernetes|k8s|docker|containers?|terraform|ansible|ci\/cd|ci|observability|monitoring|prometheus|grafana|opentelemetry|sre|incidents?|on-?call|aws|gcp|azure|cloud|serverless|linux|nginx|helm|gitops|deploy\w*|outage|postmortem)\b/i,
-  engineering:
-    /\b(programming|software|engineering|rust|golang|typescript|javascript|python|java|kotlin|swift|refactor\w*|testing|code review|compilers?|open source|git|api|performance|security|debugging|compsci|practices|web)\b/i,
+// Keywords per topic, matched against title + tags as whole words ("ai" won't match "maintain").
+// Each entry is a regex fragment. Add a keyword here and the topic page picks it up on the next refresh.
+const KEYWORDS: Record<Category, string[]> = {
+  ai: ["ai", "llms?", "gpt\\S*", "chatgpt", "claude", "gemini", "llama", "mistral", "deepseek", "qwen", "openai", "anthropic", "machine ?learning", "machinelearning", "ml", "deep learning", "neural", "transformers?", "diffusion", "rag", "agents?", "agentic", "embeddings?", "fine-?tun\\w*", "inference", "hugging ?face", "pytorch", "ollama", "copilot", "vibecoding", "mcp", "papers?"],
+  "system-design": ["system ?design", "systemdesign", "architecture", "distributed", "scal(e|ing|ability)", "microservices?", "queues?", "cach(e|ing)", "consensus", "raft", "paxos", "shard\\w*", "replication", "load balanc\\w*", "latency", "throughput", "event[- ]driven", "cdn", "high availability", "rate limit\\w*"],
+  devops: ["devops", "kubernetes", "k8s", "docker", "containers?", "terraform", "ansible", "ci/cd", "ci", "observability", "monitoring", "prometheus", "grafana", "opentelemetry", "sre", "incidents?", "on-?call", "helm", "gitops", "deploy\\w*", "outage", "postmortem", "platform engineering", "linux", "nginx"],
+  cloud: ["cloud", "aws", "gcp", "google cloud", "azure", "serverless", "lambda", "s3", "ec2", "cloudflare", "vercel", "netlify"],
+  web: ["web", "webdev", "frontend", "front-end", "css", "html", "javascript", "typescript", "react", "vue", "svelte", "angular", "next\\.?js", "node\\.?js", "deno", "bun", "browsers?", "chrome", "firefox", "safari", "webassembly", "wasm", "tailwind"],
+  data: ["databases?", "postgres(ql)?", "mysql", "sqlite", "sql", "redis", "kafka", "mongodb", "clickhouse", "duckdb", "data engineering", "analytics", "etl", "warehouse", "spark"],
+  security: ["security", "cybersecurity", "vulnerabilit\\w*", "cve-?[\\d-]*", "exploits?", "malware", "ransomware", "breach\\w*", "phishing", "zero-day", "0day", "oauth", "encryption", "cryptography", "infosec", "backdoor", "supply chain attack", "hacked"],
+  languages: ["rust", "golang", "go \\d[\\d.]*", "python", "java", "kotlin", "swift", "c\\+\\+", "zig", "elixir", "haskell", "ocaml", "ruby", "php", "scala", "c#", "\\.net", "dotnet", "compilers?", "programming languages?"],
+  mobile: ["android", "ios", "iphone", "swiftui", "flutter", "react native", "mobile", "xcode", "jetpack compose"],
+  "open-source": ["open ?source", "open-source", "oss", "foss", "maintainers?", "licen[cs]e", "forks?", "github"],
+  career: ["careers?", "hiring", "interviews?", "layoffs?", "salar(y|ies)", "remote work", "managers?", "management", "leadership", "staff engineer", "promotion", "burnout", "jobs?", "junior", "mentor\\w*"],
+  engineering: ["programming", "software", "engineering", "refactor\\w*", "testing", "tdd", "code review", "debugging", "performance", "compsci", "practices", "api", "clean code", "design patterns", "technical debt", "tech debt", "git"],
 };
+
+// (?<!\w)...(?!\w) instead of \b so keywords like "c++" and "c#" still match.
+const RULES = Object.fromEntries(
+  Object.entries(KEYWORDS).map(([c, words]) => [c, new RegExp(`(?<![\\w])(${words.join("|")})(?![\\w])`, "i")]),
+) as Record<Category, RegExp>;
+
+export const matchTopics = (text: string) => (Object.keys(RULES) as Category[]).filter((c) => RULES[c].test(text));
 
 /** Source hints + keyword matches. Articles matching nothing are off-topic and get dropped. */
 export function categorize(items: RawArticle[]): Article[] {
   return items.flatMap((item) => {
-    const text = `${item.title} ${item.tags.join(" ")}`;
-    const matched = (Object.keys(RULES) as Category[]).filter((c) => RULES[c].test(text));
+    const matched = matchTopics(`${item.title} ${item.tags.join(" ")}`);
     const categories = [...new Set([...(item.categories ?? []), ...matched])];
     return categories.length ? [{ ...item, categories }] : [];
   });
 }
+
+/** Low-frequency blogs keep months of posts in their feeds; a news feed only wants recent ones. */
+export const dropStale = <T extends { publishedAt: string }>(items: T[], now = Date.now(), maxDays = 30) =>
+  items.filter((item) => now - Date.parse(item.publishedAt) < maxDays * 86_400_000);
 
 /** Same link posted on HN and Lobsters -> one entry. "https://www.x.com/a/?utm_source=hn" == "https://x.com/a". */
 export function normalizeUrl(raw: string): string {
@@ -86,4 +103,15 @@ export function rank(items: Article[], now = Date.now()): Article[] {
     seen.set(entry.item.source, k + 1);
   }
   return scored.sort((a, b) => b.s - a.s).map(({ item }) => item);
+}
+
+export const PAGE_SIZE = 30;
+export const MAX_PAGES = 10; // nobody reads page 11 of a news feed; also bounds how many pages ISR caches
+
+/** Filter by topics (any match), then slice one page. Page numbers start at 1. */
+export function paginate(all: Article[], topics: Category[], page: number, size = PAGE_SIZE) {
+  const matching = topics.length ? all.filter((a) => a.categories.some((c) => topics.includes(c))) : all;
+  const totalPages = Math.max(1, Math.min(Math.ceil(matching.length / size), MAX_PAGES));
+  const articles = page <= totalPages ? matching.slice((page - 1) * size, page * size) : [];
+  return { articles, page, totalPages, total: matching.length };
 }

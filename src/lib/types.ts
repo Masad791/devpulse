@@ -1,7 +1,15 @@
 export const CATEGORIES = {
-  ai: "AI & Models",
+  ai: "AI & ML",
   "system-design": "System Design",
-  devops: "DevOps & Cloud",
+  devops: "DevOps",
+  cloud: "Cloud",
+  web: "Web & Frontend",
+  data: "Data & Databases",
+  security: "Security",
+  languages: "Languages",
+  mobile: "Mobile",
+  "open-source": "Open Source",
+  career: "Career",
   engineering: "Engineering",
 } as const;
 
@@ -17,6 +25,7 @@ export type RawArticle = {
   url: string;
   source: string;
   discussionUrl?: string;
+  image?: string; // cover image when the source gives one cheaply
   points: number; // upstream popularity; 0 when the source has none (RSS)
   comments: number;
   publishedAt: string; // ISO 8601
@@ -35,3 +44,17 @@ export type SourceStatus = { name: string; ok: boolean; count: number; error?: s
 
 /** Sidebar items (trending models, rising repos) — not articles, so not ranked with them. */
 export type Trend = { title: string; url: string; description?: string; stat: string };
+
+/** A social post from an engineer (Bluesky) or a trending tech Mastodon post. */
+export type Post = {
+  id: string;
+  network: "Bluesky" | "Mastodon";
+  url: string;
+  author: { name: string; handle: string; avatar?: string; url: string };
+  text: string;
+  link?: { url: string; title: string };
+  createdAt: string;
+  likes: number;
+  reposts: number;
+  replies: number;
+};

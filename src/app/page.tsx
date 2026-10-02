@@ -1,8 +1,8 @@
-import { FeedPage } from "@/components/feed-page";
+import { FeedView } from "@/components/feed-view";
 
-// ISR: the page is static HTML served from the CDN, rebuilt in the background at most every 15 min.
-export const revalidate = 900;
+// ISR: static HTML served from the CDN, rebuilt in the background at most every 5 min.
+export const revalidate = 300;
 
 export default function Home() {
-  return <FeedPage />;
+  return <FeedView page={1} />;
 }

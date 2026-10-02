@@ -1,13 +1,16 @@
-import { categorize, dedupe, rank } from "./pipeline";
+import { unstable_cache } from "next/cache";
+import { categorize, dedupe, dropStale, rank } from "./pipeline";
+import { allSettledPool } from "./pool";
 import { SOURCES } from "./sources";
+import { socialFetchers } from "./sources/social";
 import { risingRepos, trendingModels } from "./sources/trends";
-import type { Article, SourceStatus, Trend } from "./types";
+import type { Article, Post, SourceStatus, Trend } from "./types";
 
 export type Feed = { generatedAt: string; articles: Article[]; sources: SourceStatus[] };
 
-/** Fan out to every source in parallel; a failing source is reported, never fatal. */
-export async function getFeed(): Promise<Feed> {
-  const results = await Promise.allSettled(SOURCES.map((s) => s.fetch()));
+/** Fan out to every source (10 at a time); a failing source is reported, never fatal. */
+async function buildFeed(): Promise<Feed> {
+  const results = await allSettledPool(SOURCES.map((s) => s.fetch), 10);
 
   const sources = results.map((r, i): SourceStatus => {
     const name = SOURCES[i].name;
@@ -17,8 +20,39 @@ export async function getFeed(): Promise<Feed> {
   });
 
   const raw = results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
-  return { generatedAt: new Date().toISOString(), articles: rank(dedupe(categorize(raw))), sources };
+  const now = Date.now();
+  return { generatedAt: new Date(now).toISOString(), articles: rank(dedupe(categorize(dropStale(raw, now))), now), sources };
 }
+
+// The whole processed feed is cached as ONE entry and shared by every page and the API.
+// Without this, 12 topics x 10 pages would each re-run 50 fetches + the pipeline.
+export const getFeed = unstable_cache(buildFeed, ["feed-v2"], { revalidate: 300, tags: ["feed"] });
+
+export type Buzz = { generatedAt: string; posts: Post[] };
+
+async function buildBuzz(): Promise<Buzz> {
+  const results = await allSettledPool(socialFetchers.map((f) => f.fetch), 10);
+  results.forEach((r, i) => r.status === "rejected" && console.error(`[buzz] ${socialFetchers[i].name} failed:`, r.reason));
+  const now = Date.now();
+  const ageHours = (p: Post) => (now - Date.parse(p.createdAt)) / 3_600_000;
+  // Engagement with a 12h half-life: fresh + discussed first.
+  const score = (p: Post) => Math.log1p(p.likes + 2 * p.reposts + p.replies) * 0.5 ** (ageHours(p) / 12);
+
+  // The same federated post trends on several Mastodon servers; its url is the same everywhere.
+  const unique = new Map(results.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).map((p) => [p.url, p]));
+  const perAuthor = new Map<string, number>();
+  const posts = [...unique.values()]
+    .filter((p) => ageHours(p) < 72)
+    .sort((a, b) => score(b) - score(a))
+    .filter((p) => {
+      const n = (perAuthor.get(p.author.handle) ?? 0) + 1; // max 3 per author so one prolific poster can't own the feed
+      perAuthor.set(p.author.handle, n);
+      return n <= 3;
+    });
+  return { generatedAt: new Date(now).toISOString(), posts };
+}
+
+export const getBuzz = unstable_cache(buildBuzz, ["buzz-v1"], { revalidate: 120, tags: ["buzz"] });
 
 export async function getTrends(): Promise<{ models: Trend[]; repos: Trend[] }> {
   const [models, repos] = await Promise.allSettled([trendingModels(), risingRepos()]);

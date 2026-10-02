@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categorize, dedupe, normalizeUrl, rank } from "./pipeline";
+import { categorize, dedupe, dropStale, normalizeUrl, paginate, rank } from "./pipeline";
 import type { Article, RawArticle } from "./types";
 
 const NOW = Date.parse("2026-10-02T12:00:00Z");
@@ -21,7 +21,7 @@ const article = (over: Partial<Article>): Article => ({ ...raw(over), categories
 describe("categorize", () => {
   it("matches keywords in title and tags", () => {
     const [a] = categorize([raw({ title: "Scaling Postgres with Kubernetes" })]);
-    expect(a.categories).toEqual(expect.arrayContaining(["system-design", "devops"]));
+    expect(a.categories).toEqual(expect.arrayContaining(["system-design", "data", "devops"]));
   });
 
   it("keeps source hints and drops off-topic items", () => {
@@ -32,16 +32,23 @@ describe("categorize", () => {
     expect(out.map((a) => a.id)).toEqual(["hint"]);
   });
 
-  it("does not match substrings (\"maintain\" is not AI)", () => {
+  it("matches whole words only, including symbol keywords", () => {
     expect(categorize([raw({ title: "How to maintain a garden" })])).toEqual([]);
+    expect(categorize([raw({ title: "What's new in C++26" })])).toEqual([]); // "C++26" is not "C++"
+    expect(categorize([raw({ title: "Modern C++ tips" })])[0].categories).toContain("languages");
+  });
+});
+
+describe("dropStale", () => {
+  it("removes posts older than the window", () => {
+    const out = dropStale([raw({ id: "new" }), raw({ id: "old", publishedAt: hoursAgo(24 * 40) })], NOW);
+    expect(out.map((a) => a.id)).toEqual(["new"]);
   });
 });
 
 describe("dedupe", () => {
   it("treats tracking params, www and trailing slash as the same URL", () => {
-    expect(normalizeUrl("https://www.Example.com/post/?utm_source=hn#top")).toBe(
-      normalizeUrl("https://example.com/post"),
-    );
+    expect(normalizeUrl("https://www.Example.com/post/?utm_source=hn#top")).toBe(normalizeUrl("https://example.com/post"));
   });
 
   it("keeps the more popular copy", () => {
@@ -82,5 +89,31 @@ describe("rank", () => {
       NOW,
     );
     expect(out.map((a) => a.id).slice(0, 2).sort()).toEqual(["devto-top", "hn-top"]);
+  });
+});
+
+describe("paginate", () => {
+  const items = Array.from({ length: 65 }, (_, i) =>
+    article({ id: String(i), categories: i % 2 ? ["ai"] : ["web"] }),
+  );
+
+  it("slices pages and counts them", () => {
+    const p3 = paginate(items, [], 3, 30);
+    expect(p3).toMatchObject({ page: 3, totalPages: 3, total: 65 });
+    expect(p3.articles.map((a) => a.id)).toEqual(["60", "61", "62", "63", "64"]);
+  });
+
+  it("filters by any of the given topics", () => {
+    expect(paginate(items, ["ai"], 1, 100).total).toBe(32);
+    expect(paginate(items, ["ai", "web"], 1, 100).total).toBe(65);
+  });
+
+  it("returns an empty page past the end (the route turns that into a 404)", () => {
+    expect(paginate(items, [], 9, 30).articles).toEqual([]);
+  });
+
+  it("caps pages at MAX_PAGES but reports the real total", () => {
+    expect(paginate(items, [], 1, 1)).toMatchObject({ totalPages: 10, total: 65 });
+    expect(paginate(items, [], 11, 1).articles).toEqual([]);
   });
 });

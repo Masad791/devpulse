@@ -23,7 +23,7 @@ export async function risingRepos(): Promise<Trend[]> {
   const token = process.env.GITHUB_TOKEN; // optional: raises the rate limit
   const { items } = await getJson<{ items: Repo[] }>(
     `https://api.github.com/search/repositories?q=created:>${since}&sort=stars&order=desc&per_page=8`,
-    token ? { Authorization: `Bearer ${token}` } : {},
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
   );
   return items.map((r) => ({
     title: r.full_name,
