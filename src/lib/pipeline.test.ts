@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { categorize, dedupe, dropStale, httpUrl, normalizeUrl, paginate, rank, sanitize } from "./pipeline";
+import { categorize, cluster, dropStale, httpUrl, normalizeUrl, paginate, rank, sanitize } from "./pipeline";
 import type { Article, RawArticle } from "./types";
 
 const NOW = Date.parse("2026-10-02T12:00:00Z");
@@ -22,6 +22,15 @@ describe("categorize", () => {
   it("matches keywords in title and tags", () => {
     const [a] = categorize([raw({ title: "Scaling Postgres with Kubernetes" })]);
     expect(a.categories).toEqual(expect.arrayContaining(["system-design", "data", "devops"]));
+  });
+
+  it("tags agent skills, but not career skills", () => {
+    const topics = (title: string) => categorize([raw({ title: `${title} on Kubernetes` })])[0].categories;
+    expect(topics("Claude Motion")).toContain("skills");
+    expect(topics("Popular AI Agent Skills")).toContain("skills");
+    expect(topics("Agent-Skills.market")).toContain("skills");
+    expect(topics("51 SKILL.md workflows")).toContain("skills");
+    expect(topics("Soft skills for engineers")).not.toContain("skills");
   });
 
   it("keeps source hints and drops off-topic items", () => {
@@ -65,17 +74,44 @@ describe("dropStale", () => {
   });
 });
 
-describe("dedupe", () => {
+describe("cluster", () => {
   it("treats tracking params, www and trailing slash as the same URL", () => {
     expect(normalizeUrl("https://www.Example.com/post/?utm_source=hn#top")).toBe(normalizeUrl("https://example.com/post"));
   });
 
-  it("keeps the more popular copy", () => {
-    const out = dedupe([
-      article({ id: "lobsters", url: "https://x.com/a", points: 10 }),
-      article({ id: "hn", url: "https://www.x.com/a/", points: 300 }),
+  it("merges the same link into the most popular copy and lists the others", () => {
+    const out = cluster([
+      article({ id: "lobsters", source: "Lobsters", url: "https://x.com/a", discussionUrl: "https://lobste.rs/s/1", points: 10, comments: 4 }),
+      article({ id: "hn", source: "HN", url: "https://www.x.com/a/", points: 300, categories: ["ai"] }),
     ]);
-    expect(out.map((a) => a.id)).toEqual(["hn"]);
+    expect(out).toHaveLength(1);
+    expect(out[0].id).toBe("hn");
+    expect(out[0].related).toEqual([{ source: "Lobsters", url: "https://lobste.rs/s/1", points: 10, comments: 4 }]);
+    expect(out[0].categories).toEqual(expect.arrayContaining(["ai", "engineering"]));
+  });
+
+  it("merges near-identical titles from different sites", () => {
+    const out = cluster([
+      article({ id: "a", source: "HN", url: "https://blog.rust-lang.org/2026/10/02/rust-1.99", title: "Announcing Rust 1.99.0", points: 500 }),
+      article({ id: "b", source: "Rust Blog", url: "https://blog.rust-lang.org/2026/10/02/Rust-1.99.0.html", title: "Announcing Rust 1.99.0" }),
+    ]);
+    // titles have < 4 significant words, so only an identical URL could merge these: kept apart on purpose
+    expect(out).toHaveLength(2);
+    const long = cluster([
+      article({ id: "c", source: "HN", url: "https://a.com/1", title: "Postgres 19 adds native vector search and faster vacuum", points: 200 }),
+      article({ id: "d", source: "Lobsters", url: "https://b.com/2", title: "Postgres 19 adds native vector search, faster vacuum" }),
+    ]);
+    expect(long.map((a) => a.id)).toEqual(["c"]);
+  });
+
+  it("keeps different stories apart and drops exact duplicates silently", () => {
+    const out = cluster([
+      article({ id: "x", url: "https://a.com/1", title: "Kubernetes 1.38 release notes and upgrade guide" }),
+      article({ id: "y", url: "https://b.com/2", title: "Why we moved off Kubernetes after five years" }),
+      article({ id: "x", url: "https://a.com/1", title: "Kubernetes 1.38 release notes and upgrade guide" }),
+    ]);
+    expect(out.map((a) => a.id).sort()).toEqual(["x", "y"]);
+    expect(out.every((a) => !a.related)).toBe(true);
   });
 });
 

@@ -1,6 +1,5 @@
-// Filters are plain links and GET forms: every filtered view has a shareable URL and works without JS.
+// Filters are plain links: every filtered view has a shareable URL and works without JS.
 import Link from "next/link";
-import { AutoSubmitSelect } from "./auto-submit-select";
 
 type Params = Record<string, string | number | boolean | undefined>;
 
@@ -35,35 +34,5 @@ export function Pills({ items, active, hrefFor }: { items: [key: string, label: 
         </Link>
       ))}
     </div>
-  );
-}
-
-/** A select inside a GET form; `hidden` carries the other active filters along. */
-export function SelectFilter({
-  action,
-  name,
-  value,
-  options,
-  hidden,
-  label,
-}: {
-  action: string;
-  name: string;
-  value?: string;
-  options: [value: string, label: string][];
-  hidden: Params;
-  label: string;
-}) {
-  return (
-    <form action={action} className="inline-flex items-center gap-2 text-sm">
-      {Object.entries(hidden).map(([k, v]) => v !== undefined && <input key={k} type="hidden" name={k} value={String(v)} />)}
-      <label className="text-muted" htmlFor={`f-${name}`}>
-        {label}
-      </label>
-      <AutoSubmitSelect id={`f-${name}`} name={name} defaultValue={value ?? ""} options={options} />
-      <noscript>
-        <button className="rounded-lg border border-line px-2 py-1">Go</button>
-      </noscript>
-    </form>
   );
 }

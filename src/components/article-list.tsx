@@ -1,9 +1,12 @@
 // One DOM for both layouts. `cards:` / `compact:` variants (globals.css) restyle it from the
 // <html data-layout / data-density> attributes, so switching layout is instant and needs no re-render.
+// data-* hooks: data-article (keyboard nav), data-source + data-title (mute rules), data-track (click counts).
 import Link from "next/link";
 import { count, domain, favicon, timeAgo } from "@/lib/format";
+import { muteKey } from "@/lib/prefs";
 import { CATEGORIES, type Article } from "@/lib/types";
 import { ArrowUp, Comment } from "./icons";
+import { SaveButton } from "./save-button";
 
 export function ArticleList({ articles, now }: { articles: Article[]; now: number }) {
   return (
@@ -16,8 +19,14 @@ export function ArticleList({ articles, now }: { articles: Article[]; now: numbe
 }
 
 function ArticleItem({ article: a, now }: { article: Article; now: number }) {
+  const totalComments = a.comments + (a.related?.reduce((n, r) => n + r.comments, 0) ?? 0);
   return (
-    <li className="flex flex-col gap-1.5 py-4 compact:gap-1 compact:py-2.5 cards:rounded-xl cards:border cards:border-line cards:bg-surface cards:p-4 cards:transition-colors cards:hover:border-accent/60">
+    <li
+      data-article
+      data-source={a.source}
+      data-title={` ${muteKey(a.title)} `}
+      className="flex scroll-mt-32 flex-col gap-1.5 py-4 compact:gap-1 compact:py-2.5 data-selected:shadow-[inset_3px_0_0_var(--accent)] data-selected:pl-3 cards:rounded-xl cards:border cards:border-line cards:bg-surface cards:p-4 cards:transition-colors cards:hover:border-accent/60 cards:data-selected:border-accent"
+    >
       <div className="flex items-center gap-2 text-xs text-muted">
         {/* eslint-disable-next-line @next/next/no-img-element -- third-party favicons; nothing to optimize */}
         <img src={favicon(a.discussionUrl ?? a.url)} alt="" width={14} height={14} loading="lazy" className="size-3.5 rounded-sm" />
@@ -30,7 +39,9 @@ function ArticleItem({ article: a, now }: { article: Article; now: number }) {
         href={a.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-[15px] font-semibold leading-snug text-fg hover:text-accent compact:text-sm compact:font-medium cards:text-base"
+        data-track={a.id}
+        data-open
+        className="text-[15px] font-semibold leading-snug text-fg visited:text-muted hover:text-accent compact:text-sm compact:font-medium cards:text-base"
       >
         {a.title}
         <span className="ml-1.5 text-xs font-normal text-muted cards:hidden">{domain(a.url)}</span>
@@ -54,10 +65,27 @@ function ArticleItem({ article: a, now }: { article: Article; now: number }) {
           </span>
         )}
         {a.discussionUrl && (
-          <a href={a.discussionUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-fg">
+          <a
+            href={a.discussionUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-comments
+            className="inline-flex items-center gap-1 hover:text-fg"
+            title={a.related ? `${totalComments} comments across ${a.related.length + 1} sites` : "comments"}
+          >
             <Comment className="size-3" />
-            {count(a.comments)}
+            {count(totalComments)}
           </a>
+        )}
+        {a.related && (
+          <span className="inline-flex flex-wrap items-center gap-1 compact:hidden">
+            also on
+            {a.related.map((r) => (
+              <a key={r.source} href={r.url} target="_blank" rel="noopener noreferrer" className="font-medium text-fg/70 hover:text-accent">
+                {r.source}
+              </a>
+            ))}
+          </span>
         )}
         <span className="flex flex-wrap gap-1.5 compact:hidden">
           {a.categories.slice(0, 3).map((c) => (
@@ -65,6 +93,9 @@ function ArticleItem({ article: a, now }: { article: Article; now: number }) {
               #{c}
             </Link>
           ))}
+        </span>
+        <span className="ml-auto">
+          <SaveButton article={{ id: a.id, title: a.title, url: a.url, source: a.source, publishedAt: a.publishedAt }} />
         </span>
       </div>
     </li>

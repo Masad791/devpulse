@@ -86,8 +86,8 @@ function Skeleton() {
     <div className="space-y-5 py-4" aria-hidden>
       {Array.from({ length: 6 }, (_, i) => (
         <div key={i} className="space-y-2">
-          <div className="h-3 w-1/4 animate-pulse rounded bg-surface" />
-          <div className="h-4 w-3/4 animate-pulse rounded bg-surface" />
+          <div className="h-3 w-1/4 rounded bg-surface motion-safe:animate-pulse" />
+          <div className="h-4 w-3/4 rounded bg-surface motion-safe:animate-pulse" />
         </div>
       ))}
     </div>

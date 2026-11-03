@@ -31,6 +31,12 @@ The third value is the list of topics every post from that feed belongs to (opti
 
 **Add a repo category or issue label** — `REPO_CATEGORIES` / `ISSUE_LABELS` in [`src/lib/sources/github.ts`](src/lib/sources/github.ts). A category is one or more GitHub search queries (e.g. `"topic:rag"`).
 
+**Track a technology on the Trend radar** — one entry in `TRACKED` in [`src/lib/trends.ts`](src/lib/trends.ts).
+
+**Watch a project on the Release radar** — one entry in `WATCHED` in [`src/lib/sources/releases.ts`](src/lib/sources/releases.ts). Add a `match` regex if the repo also publishes non-release tags.
+
+**Database changes** — edit [`db/schema.sql`](db/schema.sql) so it stays idempotent (`create … if not exists`, `alter … add column if not exists`); `npm run db:migrate` applies it. The site must keep working with no database at all.
+
 **Add a theme** — add a `[data-theme="your-theme"]` block with the six color variables to [`src/app/globals.css`](src/app/globals.css), and an entry in `THEMES` in [`src/lib/prefs.ts`](src/lib/prefs.ts) with matching swatch colors. Check text contrast (muted text on the background should be at least 4.5:1).
 
 **Add a non-RSS source** — write an adapter in `src/lib/sources/` that returns `RawArticle[]` (see `hackernews.ts` for a ~30-line example) and add it to `SOURCES`.

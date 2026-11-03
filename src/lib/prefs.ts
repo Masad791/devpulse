@@ -9,7 +9,21 @@ export type Prefs = {
   density?: "comfortable" | "compact";
   font?: "sans" | "mono";
   topics?: Category[];
+  muteWords?: string[]; // already normalized with muteKey()
+  muteSources?: string[];
 };
+
+/**
+ * Normalizes text for mute matching: lowercase words separated by single spaces. Article items carry
+ * data-title=" <muteKey(title)> ", so a mute rule [data-title*=" word "] matches whole words and phrases
+ * ("go" won't hide "google"). The output has no quotes or backslashes, so it's safe inside a CSS string.
+ */
+export const muteKey = (text: string) =>
+  text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}+#.]+/gu, " ")
+    .replace(/\.(?=\s|$)/g, "")
+    .trim();
 
 export const THEMES: { id: string; label: string; swatch: [bg: string, fg: string, accent: string] }[] = [
   { id: "system", label: "System", swatch: ["#ffffff", "#0b0b0f", "#059669"] },
@@ -37,6 +51,12 @@ var d=document.documentElement;
 window.__devpulseApply=function(p){
 ["theme","layout","density","font"].forEach(function(k){p[k]?d.setAttribute("data-"+k,p[k]):d.removeAttribute("data-"+k)});
 p.accent?d.style.setProperty("--accent",p.accent):d.style.removeProperty("--accent");
+var c="",q=function(v){return String(v).replace(/["\\\\]/g,"")};
+(p.muteSources||[]).forEach(function(s){c+='[data-source="'+q(s)+'"],'});
+(p.muteWords||[]).forEach(function(w){c+='[data-title*=" '+q(w)+' "],'});
+var st=document.getElementById("dp-mute");
+if(!st){st=document.createElement("style");st.id="dp-mute";document.head.appendChild(st)}
+st.textContent=c?c.slice(0,-1)+"{display:none!important}":"";
 };
 try{window.__devpulseApply(JSON.parse(localStorage.getItem("${KEY}")||"{}"))}catch(e){}
 })()`;

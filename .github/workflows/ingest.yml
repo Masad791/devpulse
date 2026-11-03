@@ -1,0 +1,23 @@
+name: Ingest
+
+# Free scheduler: GitHub Actions cron (public repos get unlimited minutes) calls the site's ingest endpoint.
+# Vercel's free plan only allows a once-a-day cron, so this is what keeps the database fresh.
+# Setup: repo Settings → Secrets and variables → Actions:
+#   variable SITE_URL   = https://your-site.vercel.app
+#   secret   CRON_SECRET = same value as the CRON_SECRET env var on Vercel
+on:
+  schedule:
+    - cron: "*/15 * * * *" # GitHub may delay scheduled runs a few minutes under load
+  workflow_dispatch: # "Run workflow" button for a manual run
+
+jobs:
+  ingest:
+    if: vars.SITE_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/cron/ingest
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: curl --fail-with-body --silent --show-error --max-time 180 -X POST "$SITE_URL/api/cron/ingest" -H "Authorization: Bearer $CRON_SECRET"

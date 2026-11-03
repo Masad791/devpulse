@@ -17,7 +17,8 @@ const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISO
 /** Each category is one or more search queries (GitHub search can't OR two topics, so we merge). */
 export const REPO_CATEGORIES = {
   all: { label: "Everything", queries: ["stars:>20"] },
-  claude: { label: "Claude & agent skills", queries: ["topic:claude-code", "topic:agent-skills"] },
+  skills: { label: "AI skills", queries: ["topic:claude-skills", "topic:agent-skills", "topic:claude-code-skills"] },
+  claude: { label: "Claude Code", queries: ["topic:claude-code"] },
   "ai-agents": { label: "AI agents", queries: ["topic:ai-agents"] },
   mcp: { label: "MCP servers", queries: ["topic:mcp-server"] },
   llm: { label: "LLM apps", queries: ["topic:llm"] },

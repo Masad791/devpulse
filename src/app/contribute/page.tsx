@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { hrefWith, oneOf, param, Pills } from "@/components/filters";
 import { Comment } from "@/components/icons";
 import { Pagination } from "@/components/pagination";
+import { clientKey, rateLimit } from "@/lib/db";
 import { timeAgo } from "@/lib/format";
 import { MAX_PAGES } from "@/lib/pipeline";
 import {
@@ -134,6 +136,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 async function load(filters: IssueFilters): Promise<{ total: number; issues: Issue[]; error?: string; now: number }> {
+  // Every unique filter combo is a GitHub search on our shared token: cap each visitor at 20/min (needs the DB).
+  if (!(await rateLimit(clientKey(await headers(), "contribute"), 20, 60))) {
+    return { total: 0, issues: [], error: "You're searching faster than GitHub lets us. Wait a minute and try again.", now: Date.now() };
+  }
   try {
     return { ...(await searchIssues(filters)), now: Date.now() };
   } catch (e) {

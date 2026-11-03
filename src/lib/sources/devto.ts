@@ -18,15 +18,19 @@ const QUERIES: [string, Category?][] = [
   ["top=3&per_page=100"],
   ["tag=systemdesign&top=7&per_page=15", "system-design"],
   ["tag=devops&top=7&per_page=15", "devops"],
+  ["tag=agentskills&top=30&per_page=15"],
+  ["tag=claudeskills&top=30&per_page=15"],
 ];
 
 export const devto: Source = {
   name: "Dev.to",
   async fetch() {
-    const pages = await Promise.all(
-      QUERIES.map(async ([query, category]) => {
-        const items = await getJson<DevtoArticle[]>(`https://dev.to/api/articles?${query}`);
-        return items.map(
+    // One at a time: Dev.to answers 429 to more than about 3 parallel requests, and that would fail the whole source.
+    const articles: RawArticle[] = [];
+    for (const [query, category] of QUERIES) {
+      const items = await getJson<DevtoArticle[]>(`https://dev.to/api/articles?${query}`);
+      articles.push(
+        ...items.map(
           (a): RawArticle => ({
             id: `devto:${a.id}`,
             title: a.title,
@@ -40,9 +44,9 @@ export const devto: Source = {
             tags: a.tag_list,
             categories: category ? [category] : undefined,
           }),
-        );
-      }),
-    );
-    return pages.flat();
+        ),
+      );
+    }
+    return articles;
   },
 };

@@ -1,11 +1,12 @@
-// Pure steps of the feed pipeline: categorize -> dedupe -> rank -> paginate.
+// Pure steps of the feed pipeline: sanitize -> categorize -> cluster -> rank -> paginate.
 // No I/O here, so every step is unit-testable (see pipeline.test.ts).
-import type { Article, Category, RawArticle } from "./types";
+import type { Article, Category, RawArticle, Related } from "./types";
 
 // Keywords per topic, matched against title + tags as whole words ("ai" won't match "maintain").
 // Each entry is a regex fragment. Add a keyword here and the topic page picks it up on the next refresh.
 const KEYWORDS: Record<Category, string[]> = {
   ai: ["ai", "llms?", "gpt\\S*", "chatgpt", "claude", "gemini", "llama", "mistral", "deepseek", "qwen", "openai", "anthropic", "machine ?learning", "machinelearning", "ml", "deep learning", "neural", "transformers?", "diffusion", "rag", "agents?", "agentic", "embeddings?", "fine-?tun\\w*", "inference", "hugging ?face", "pytorch", "ollama", "copilot", "vibecoding", "mcp", "papers?"],
+  skills: ["claude[ -]skills?", "claude[ -]code[ -]skills?", "agent[ -]skills?", "agentskills", "claudeskills", "skills?\\.md", "skills\\.sh", "claude motion", "claude design", "claude dashboards?"],
   "system-design": ["system ?design", "systemdesign", "architecture", "distributed", "scal(e|ing|ability)", "microservices?", "queues?", "cach(e|ing)", "consensus", "raft", "paxos", "shard\\w*", "replication", "load balanc\\w*", "latency", "throughput", "event[- ]driven", "cdn", "high availability", "rate limit\\w*"],
   devops: ["devops", "kubernetes", "k8s", "docker", "containers?", "terraform", "ansible", "ci/cd", "ci", "observability", "monitoring", "prometheus", "grafana", "opentelemetry", "sre", "incidents?", "on-?call", "helm", "gitops", "deploy\\w*", "outage", "postmortem", "platform engineering", "linux", "nginx"],
   cloud: ["cloud", "aws", "gcp", "google cloud", "azure", "serverless", "lambda", "s3", "ec2", "cloudflare", "vercel", "netlify"],
@@ -73,14 +74,51 @@ export function normalizeUrl(raw: string): string {
   }
 }
 
-export function dedupe(items: Article[]): Article[] {
-  const best = new Map<string, Article>();
-  for (const item of items) {
-    const key = normalizeUrl(item.url);
-    const seen = best.get(key);
-    if (!seen || item.points > seen.points) best.set(key, item);
+const STOPWORDS = new Set("the a an and or of to in for on with is are how why what your you we our from by at as it this that show ask hn new".split(" "));
+
+/** Significant title words: "Show HN: Postgres 18 is out!" -> {postgres, 18, out}. */
+export function titleTokens(title: string): Set<string> {
+  return new Set((title.toLowerCase().match(/[a-z0-9+#.]+/g) ?? []).filter((w) => !STOPWORDS.has(w) && (w.length > 2 || /\d/.test(w))));
+}
+
+function jaccard(a: Set<string>, b: Set<string>) {
+  let shared = 0;
+  for (const w of a) if (b.has(w)) shared++;
+  return shared / (a.size + b.size - shared);
+}
+
+/**
+ * Story clustering: the same story on HN, Lobsters and a blog becomes ONE entry (the most popular copy)
+ * with the others listed as `related`. Same story = same normalized URL, or near-identical titles
+ * (Jaccard >= 0.6 on significant words, both titles >= 4 words so short titles can't collide).
+ * ponytail: O(n x clusters) title scan, fine for ~1k articles; use MinHash/embeddings beyond ~10k.
+ */
+export function cluster(items: Article[]): Article[] {
+  type Cluster = { primary: Article; related: Related[]; tokens: Set<string>; ids: Set<string> };
+  const clusters: Cluster[] = [];
+  const byUrl = new Map<string, Cluster>();
+
+  for (const item of [...items].sort((a, b) => b.points - a.points)) {
+    const urlKey = normalizeUrl(item.url);
+    const tokens = titleTokens(item.title);
+    const match =
+      byUrl.get(urlKey) ?? (tokens.size >= 4 ? clusters.find((c) => c.tokens.size >= 4 && jaccard(c.tokens, tokens) >= 0.6) : undefined);
+
+    if (!match) {
+      const c: Cluster = { primary: item, related: [], tokens, ids: new Set([item.id]) };
+      clusters.push(c);
+      byUrl.set(urlKey, c);
+      continue;
+    }
+    byUrl.set(urlKey, match);
+    if (match.ids.has(item.id)) continue; // the same item fetched twice (e.g. two Dev.to tag queries)
+    match.ids.add(item.id);
+    match.primary = { ...match.primary, categories: [...new Set([...match.primary.categories, ...item.categories])] };
+    if (item.source !== match.primary.source && !match.related.some((r) => r.source === item.source)) {
+      match.related.push({ source: item.source, url: item.discussionUrl ?? item.url, points: item.points, comments: item.comments });
+    }
   }
-  return [...best.values()];
+  return clusters.map((c) => (c.related.length ? { ...c.primary, related: c.related } : c.primary));
 }
 
 // Ranking knobs. Tuned by eye against live data — change them and watch the home page.
@@ -95,7 +133,7 @@ const SOURCE_WEIGHT: Record<string, number> = { "Dev.to": 0.7 }; // default 1
  * Popularity is the story's percentile *within its own source* (0..1),
  * because 100 HN points and 100 Dev.to reactions mean different things.
  */
-export function rank(items: Article[], now = Date.now()): Article[] {
+export function rank(items: Article[], now = Date.now(), halfLifeHours = HALF_LIFE_HOURS): Article[] {
   const pointsBySource = new Map<string, number[]>();
   for (const item of items) {
     const list = pointsBySource.get(item.source) ?? [];
@@ -113,7 +151,7 @@ export function rank(items: Article[], now = Date.now()): Article[] {
   const scored = items
     .map((item) => {
       const ageHours = Math.max(0, (now - Date.parse(item.publishedAt)) / 3_600_000);
-      const s = (BASELINE + popularity(item)) * (SOURCE_WEIGHT[item.source] ?? 1) * 0.5 ** (ageHours / HALF_LIFE_HOURS);
+      const s = (BASELINE + popularity(item)) * (SOURCE_WEIGHT[item.source] ?? 1) * 0.5 ** (ageHours / halfLifeHours);
       return { item, s };
     })
     .sort((a, b) => b.s - a.s);

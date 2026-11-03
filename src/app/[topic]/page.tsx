@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { FeedView } from "@/components/feed-view";
+import { SkillsBoard } from "@/components/skills-board";
 import { CATEGORIES, isCategory } from "@/lib/types";
 
 export const revalidate = 300;
@@ -21,5 +22,5 @@ export default async function TopicPage({ params }: PageProps<"/[topic]">) {
   const { topic } = await params;
   if (topic === "all") permanentRedirect("/");
   if (!isCategory(topic)) notFound();
-  return <FeedView topic={topic} page={1} />;
+  return <FeedView topic={topic} page={1} lead={topic === "skills" ? <SkillsBoard /> : undefined} />;
 }

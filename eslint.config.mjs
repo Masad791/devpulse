@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The browser extension is plain web code, not part of the Next.js app.
+    "extension/**",
   ]),
 ]);
 

@@ -1,5 +1,6 @@
 export const CATEGORIES = {
   ai: "AI & ML",
+  skills: "AI Skills",
   "system-design": "System Design",
   devops: "DevOps",
   cloud: "Cloud",
@@ -33,7 +34,10 @@ export type RawArticle = {
   categories?: Category[]; // hints from the source (e.g. a feed that is always DevOps)
 };
 
-export type Article = RawArticle & { categories: Category[] };
+/** The same story elsewhere: "also on Lobsters · 45 comments". */
+export type Related = { source: string; url: string; points: number; comments: number };
+
+export type Article = RawArticle & { categories: Category[]; related?: Related[] };
 
 export type Source = {
   name: string;

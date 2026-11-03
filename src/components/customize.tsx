@@ -1,16 +1,18 @@
 "use client";
 
 import { useRef } from "react";
-import { ACCENTS, THEMES, type Prefs } from "@/lib/prefs";
+import { ACCENTS, muteKey, THEMES, type Prefs } from "@/lib/prefs";
 import { savePrefs, usePrefs } from "@/lib/use-prefs";
 import { CATEGORIES, type Category } from "@/lib/types";
 import { Sliders } from "./icons";
 
-export function Customize() {
+export function Customize({ sources }: { sources: string[] }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const prefs = usePrefs() ?? {};
   const set = (patch: Partial<Prefs>) => savePrefs({ ...prefs, ...patch });
   const topics = prefs.topics ?? [];
+  const muteWords = prefs.muteWords ?? [];
+  const muteSources = prefs.muteSources ?? [];
   const toggleTopic = (c: Category) => set({ topics: topics.includes(c) ? topics.filter((t) => t !== c) : [...topics, c] });
 
   return (
@@ -121,12 +123,62 @@ export function Customize() {
             </div>
           </Section>
 
+          <Section title="Muted" hint="Hide stories by keyword or source. Applied before the page paints.">
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const input = e.currentTarget.elements.namedItem("word") as HTMLInputElement;
+                const word = muteKey(input.value).slice(0, 40);
+                if (word && !muteWords.includes(word)) set({ muteWords: [...muteWords, word] });
+                input.value = "";
+              }}
+            >
+              <input name="word" placeholder="e.g. crypto, web3" maxLength={40} className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm" />
+              <button className="rounded-lg border border-line px-3 text-sm hover:bg-surface">Mute</button>
+            </form>
+            <select
+              value=""
+              onChange={(e) => e.target.value && set({ muteSources: [...new Set([...muteSources, e.target.value])] })}
+              aria-label="Hide a source"
+              className="mt-2 w-full rounded-lg border border-line bg-bg px-2.5 py-1.5 text-sm text-muted"
+            >
+              <option value="">Hide a source…</option>
+              {sources
+                .filter((s) => !muteSources.includes(s))
+                .map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+            </select>
+            {(muteWords.length > 0 || muteSources.length > 0) && (
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {muteWords.map((w) => (
+                  <Chip key={`w:${w}`} label={`“${w}”`} onRemove={() => set({ muteWords: muteWords.filter((x) => x !== w) })} />
+                ))}
+                {muteSources.map((s) => (
+                  <Chip key={`s:${s}`} label={s} onRemove={() => set({ muteSources: muteSources.filter((x) => x !== s) })} />
+                ))}
+              </div>
+            )}
+          </Section>
+
           <button onClick={() => savePrefs({})} className="text-sm text-muted underline hover:text-fg">
             Reset everything
           </button>
         </div>
       </dialog>
     </>
+  );
+}
+
+function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-line py-0.5 pl-2.5 pr-1 text-xs">
+      {label}
+      <button onClick={onRemove} aria-label={`Unmute ${label}`} className="rounded-full px-1 text-muted hover:bg-surface hover:text-fg">
+        ×
+      </button>
+    </span>
   );
 }
 

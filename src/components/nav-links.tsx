@@ -13,12 +13,16 @@ const TOPICS = [
 const SECTIONS = [
   { href: "/", label: "News" },
   { href: "/buzz", label: "Buzz", live: true },
+  { href: "/skills", label: "Skills" },
   { href: "/repos", label: "Repos" },
+  { href: "/releases", label: "Releases" },
   { href: "/discussions", label: "Discussions" },
   { href: "/contribute", label: "Contribute" },
+  { href: "/trends", label: "Trends" },
 ];
 
-const OTHER_SECTIONS = SECTIONS.slice(1).map((s) => s.href);
+// Everything that is not a news page (sections + utility pages) hides the topic strip.
+const OTHER_SECTIONS = [...SECTIONS.slice(1).map((s) => s.href), "/digest", "/saved", "/status", "/search"];
 const isNewsPath = (p: string) => !OTHER_SECTIONS.some((s) => p === s || p.startsWith(`${s}/`));
 const isActive = (p: string, href: string) =>
   href === "/" ? p === "/" || p.startsWith("/all/") : p === href || p.startsWith(`${href}/`);
@@ -38,7 +42,7 @@ export function SectionNav() {
               active ? "bg-surface font-medium text-fg" : "text-muted hover:text-fg"
             }`}
           >
-            {live && <span className="size-1.5 animate-pulse rounded-full bg-accent" />}
+            {live && <span className="size-1.5 rounded-full bg-accent motion-safe:animate-pulse" />}
             {label}
           </Link>
         );

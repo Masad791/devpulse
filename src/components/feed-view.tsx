@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getBuzz, getFeed, getTrends } from "@/lib/feed";
+import type { ReactNode } from "react";
+import { getBuzz, getFeed, getMostRead, getTermTrends, getTrends } from "@/lib/feed";
 import { paginate } from "@/lib/pipeline";
 import { CATEGORIES, type Category, type SourceStatus, type Trend } from "@/lib/types";
 import { ArticleList } from "./article-list";
@@ -9,8 +10,12 @@ import { Pagination } from "./pagination";
 import { PostCard } from "./post-card";
 
 /** Shared by "/" and every topic page: one ranked feed, filtered and paginated. */
-export async function FeedView({ topic, page }: { topic?: Category; page: number }) {
-  const [feed, trends, buzz] = await Promise.all([getFeed(), getTrends(), getBuzz()]);
+export async function FeedView({ topic, page, lead }: { topic?: Category; page: number; lead?: ReactNode }) {
+  const [feed, trends, buzz, mostRead, radar] = await Promise.all([getFeed(), getTrends(), getBuzz(), getMostRead(), getTermTrends()]);
+  const rising = radar.trends
+    .filter((t) => t.thisWeek >= 3 && t.change !== null && t.change > 0)
+    .sort((a, b) => b.change! - a.change!)
+    .slice(0, 4);
   const result = paginate(feed.articles, topic ? [topic] : [], page);
   if (page > result.totalPages) notFound();
 
@@ -27,6 +32,7 @@ export async function FeedView({ topic, page }: { topic?: Category; page: number
             {result.total} stories{result.totalPages > 1 && ` · page ${page} of ${result.totalPages}`}
           </p>
         </div>
+        {lead}
         {result.articles.length ? (
           <ArticleList articles={result.articles} now={now} />
         ) : (
@@ -36,6 +42,37 @@ export async function FeedView({ topic, page }: { topic?: Category; page: number
       </section>
 
       <aside className="space-y-8 text-sm">
+        {mostRead.length > 0 && (
+          <section>
+            <SideHeading title="Most read on DevPulse" subtitle="What readers opened this week" />
+            <ol className="space-y-2.5">
+              {mostRead.map((a, i) => (
+                <li key={a.id} className="flex gap-2.5">
+                  <span className="w-4 shrink-0 font-mono text-xs text-muted">{i + 1}</span>
+                  <a href={a.url} target="_blank" rel="noopener noreferrer" data-track={a.id} className="leading-snug hover:text-accent">
+                    {a.title}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+        {rising.length > 0 && (
+          <section>
+            <SideHeading title="Rising this week" subtitle="Mentions vs last week" />
+            <ul className="space-y-1.5">
+              {rising.map((t) => (
+                <li key={t.label} className="flex items-center justify-between">
+                  <span>{t.label}</span>
+                  <span className="font-mono text-xs text-accent">+{Math.round(t.change! * 100)}%</span>
+                </li>
+              ))}
+            </ul>
+            <Link href="/trends" className="mt-2 inline-block text-xs font-medium text-accent hover:underline">
+              Trend radar →
+            </Link>
+          </section>
+        )}
         {buzz.posts.length > 0 && (
           <section>
             <SideHeading title="Engineers are saying" subtitle="Bluesky & Mastodon · live" />

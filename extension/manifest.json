@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "DevPulse — tech news on every new tab",
+  "short_name": "DevPulse",
+  "version": "0.1.0",
+  "description": "Top stories in AI, system design, DevOps, security and engineering on every new tab.",
+  "chrome_url_overrides": { "newtab": "newtab.html" }
+}

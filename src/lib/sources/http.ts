@@ -1,12 +1,12 @@
 // Every upstream call goes through here: one timeout, one User-Agent, one cache policy.
 export const REVALIDATE_SECONDS = 300; // upstream is hit at most every 5 min, no matter the traffic
 
-type Options = { headers?: Record<string, string>; revalidate?: number };
+type Options = { headers?: Record<string, string>; revalidate?: number; timeoutMs?: number };
 
-async function get(url: string, { headers = {}, revalidate = REVALIDATE_SECONDS }: Options = {}): Promise<Response> {
+async function get(url: string, { headers = {}, revalidate = REVALIDATE_SECONDS, timeoutMs = 8000 }: Options = {}): Promise<Response> {
   const res = await fetch(url, {
     headers: { "User-Agent": "DevPulse (+https://github.com/Masad791/devpulse)", ...headers },
-    signal: AbortSignal.timeout(8000), // a slow source must not stall the whole page
+    signal: AbortSignal.timeout(timeoutMs), // a slow source must not stall the whole page
     next: { revalidate },
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} <- ${url}`);

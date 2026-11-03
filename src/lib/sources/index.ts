@@ -2,7 +2,7 @@
 // Most are RSS/Atom feeds: one line each — [name, feed url, topics every post belongs to].
 import type { Category, Source } from "../types";
 import { devto } from "./devto";
-import { hackerNews } from "./hackernews";
+import { hackerNews, hnSkills } from "./hackernews";
 import { lobsters } from "./lobsters";
 import { hfPapers } from "./papers";
 import { rssSource } from "./rss";
@@ -72,6 +72,7 @@ const FEEDS: [string, string, Category[]?][] = [
 
 export const SOURCES: Source[] = [
   hackerNews,
+  hnSkills,
   devto,
   lobsters,
   hfPapers,
