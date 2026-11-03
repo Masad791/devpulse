@@ -7,7 +7,13 @@ import { RepoGrid } from "./repos-view";
 /** Top of /skills: what people install (skills.sh) and what's new (GitHub). Either can be empty; the news below still shows. */
 export async function SkillsBoard() {
   // A GitHub rate limit must not take the news down with it.
-  const [skills, repos] = await Promise.all([getSkills(), searchRepos("skills", "week").catch(() => [])]);
+  const [skills, repos] = await Promise.all([
+    getSkills(),
+    searchRepos("skills", "week").catch((error) => {
+      console.error("[skills] GitHub search failed:", error);
+      return [];
+    }),
+  ]);
 
   return (
     <div className="my-5 space-y-8">
